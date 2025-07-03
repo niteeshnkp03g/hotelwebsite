@@ -5,7 +5,7 @@ pipeline {
     environment {
         IMAGE_NAME = "dockerp241/hotelwebsite"
         TAG = "latest"
-        DOCKER_HUB_CREDENTIALS = "dockerhub"
+        CONTAINER_NAME = "hotelwebsite-container"
     }
 
     stages {
@@ -17,18 +17,17 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    docker.build("${IMAGE_NAME}:${TAG}")
-                }
+                sh 'docker build -t $IMAGE_NAME:$TAG .'
             }
         }
 
         stage('Push to Docker Hub') {
             steps {
-                script {
-                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_HUB_CREDENTIALS}") {
-                        docker.image("${IMAGE_NAME}:${TAG}").push()
-                    }
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $IMAGE_NAME:$TAG
+                    '''
                 }
             }
         }
@@ -36,10 +35,11 @@ pipeline {
         stage('Deploy Container') {
             steps {
                 sh '''
-                    docker rm -f hotelwebsite-container || true
-                    docker run -d -p 1234:80 --name hotelwebsite-container ${IMAGE_NAME}:${TAG}
+                    docker rm -f $CONTAINER_NAME || true
+                    docker run -d -p 1234:80 --name $CONTAINER_NAME $IMAGE_NAME:$TAG
                 '''
             }
         }
     }
 }
+
